@@ -25,4 +25,4 @@ classifiers = [
 aisafe = "aisafe.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/aisafe/aisafe"
+Homepage = "https://github.com/cjdrilke/aisafe"
