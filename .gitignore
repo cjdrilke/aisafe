@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# IDE
+.vscode/
+.idea/
+
+# Credentials (never commit actual credentials!)
+credentials.toml
+
+# OS
+.DS_Store
+Thumbs.db
