@@ -10,6 +10,7 @@ build/
 # IDE
 .vscode/
 .idea/
+.claude/
 
 # Credentials (never commit actual credentials!)
 credentials.toml
