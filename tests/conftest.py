@@ -24,9 +24,35 @@ for var in (
 def _suppress_parent_chain_detection(monkeypatch: pytest.MonkeyPatch):
     """Tests run inside CI / Claude Code / etc. — those parents would otherwise
     trip the AI detector. Force parent-chain scan to return None; tests that
-    want to simulate AI use the AISAFE_AI env var via mark_as_ai."""
+    want to simulate AI use the AISAFE_AI env var via mark_as_ai.
+
+    Tests that need to exercise the *real* parent-chain logic (e.g. against a
+    mocked psutil) must depend on the `real_parent_chain` fixture, which
+    overrides this suppression for their scope.
+    """
     from aisafe import detect
+    # Stash the real implementation once, so `real_parent_chain` can restore it
+    # without the autouse fixture clobbering it again on the same test.
+    if not hasattr(detect, "_real_check_parent_chain"):
+        detect._real_check_parent_chain = detect._check_parent_chain  # type: ignore[attr-defined]
     monkeypatch.setattr(detect, "_check_parent_chain", lambda: None)
+    yield
+
+
+@pytest.fixture
+def real_parent_chain(monkeypatch: pytest.MonkeyPatch):
+    """Restore the real `detect._check_parent_chain` for one test.
+
+    Without this opt-in, the autouse `_suppress_parent_chain_detection`
+    fixture would have replaced the real implementation with a stub —
+    masking the very logic these tests exist to exercise.
+    """
+    from aisafe import detect
+    monkeypatch.setattr(
+        detect,
+        "_check_parent_chain",
+        detect._real_check_parent_chain,  # type: ignore[attr-defined]
+    )
     yield
 
 

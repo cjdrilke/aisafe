@@ -194,6 +194,18 @@ def _load() -> dict[str, Any]:
     return _cache
 
 
+def _chmod_600(path: Path) -> None:
+    """Restrict a credential file to owner read/write only.
+
+    Best-effort: silently skipped on filesystems / platforms that don't
+    support POSIX permissions (Windows FAT, some network shares).
+    """
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+
 def _save(data: dict[str, Any]) -> None:
     """Write the credential data back (plaintext or encrypted)."""
     ensure_config_dir()
@@ -211,11 +223,14 @@ def _save(data: dict[str, Any]) -> None:
         from .crypto import encrypt
 
         enc_path.write_bytes(encrypt(toml_bytes, password))
+        _chmod_600(enc_path)
         plain_path = _get_path()
         if plain_path.exists():
             plain_path.unlink()
     else:
-        _get_path().write_text(toml_bytes.decode("utf-8"), encoding="utf-8")
+        plain_path = _get_path()
+        plain_path.write_text(toml_bytes.decode("utf-8"), encoding="utf-8")
+        _chmod_600(plain_path)
 
 
 def _serialize_toml(data: dict[str, Any]) -> str:
@@ -503,6 +518,7 @@ def encrypt_store(password: str) -> None:
 
     enc_path = _get_enc_path()
     enc_path.write_bytes(crypto_encrypt(data, password))
+    _chmod_600(enc_path)
     plain_path.unlink()
     _master_password = password
     reload()
@@ -523,6 +539,7 @@ def decrypt_store(password: str) -> None:
 
     plain_path = _get_path()
     plain_path.write_bytes(plaintext)
+    _chmod_600(plain_path)
     enc_path.unlink()
     _master_password = None
     reload()

@@ -46,7 +46,7 @@ from .store import (
     unlock,
 )
 
-__version__ = "0.3.9"
+__version__ = "0.3.10"
 
 __all__ = [
     "AccessDenied",

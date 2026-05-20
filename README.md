@@ -1,35 +1,69 @@
 # aisafe
 
-**Make it harder for AI coding agents to leak your secrets.**
-
-aisafe is a local credential broker designed for a world where AI assistants
-(Claude Code, Cursor, Copilot, Aider, Codex, Windsurf, …) read your files,
-run your commands, and can leak whatever they touch.
-
-> aisafe is a **guardrail, not a sandbox.** It blocks the easy path —
-> a tool calling `aisafe.get("github.token")` and pasting the value into
-> a transcript — but it cannot stop arbitrary Python in your editor's
-> Python interpreter from reading your secrets. The detection layer is
-> evadable by definition. See [Threat model](#threat-model) below.
+> ## ⚠ Status: Educational / Reference Project (as of 2026-05-19)
+>
+> aisafe started as an attempt to prevent AI coding agents from
+> exfiltrating credentials. After **10 rounds of adversarial review**
+> (9 by OpenAI Codex CLI, 1 by a Linus-style audit), the project is
+> repositioned as a **reference threat model + attack/patch log** —
+> not a production credential manager.
+>
+> **For production use, prefer one of these — they have stronger
+> architectural foundations (HTTPS proxy, daemon, OS-level boundary)
+> than aisafe can offer as a same-process Python library:**
+>
+> - [Infisical agent-vault](https://github.com/Infisical/agent-vault) —
+>   HTTPS_PROXY + MITM, dummy-token substitution, lives on a separate
+>   machine. The architecturally cleanest answer if you can deploy a
+>   service.
+> - [joelhooks/agent-secrets](https://github.com/joelhooks/agent-secrets) —
+>   Unix-socket daemon, age encryption, time-bounded leases (≤24h TTL),
+>   killswitch, audit log. This is what aisafe's v0.4 plan wanted to be —
+>   already shipped.
+> - **OS keychain backends with MCP**: [1Password MCP](https://mcpmarket.com/server/1password),
+>   [Bitwarden Secrets Manager](https://bitwarden.com/blog/secure-ai-agent-access-with-secrets-manager/),
+>   Doppler, Keeper PAM. All have real daemon / system-vault boundaries.
+> - [Agent Gateway](https://runloop.ai/blog/protect-api-keys-with-agent-gateway),
+>   [API Stronghold](https://www.apistronghold.com/blog/stop-giving-ai-agents-your-api-keys) —
+>   local HTTP-proxy pattern, transparent to any HTTP client (`curl`,
+>   `requests`, `fetch`) — aisafe's MCP-only broker can't match this.
+>
+> aisafe's residual value is the [**attack log →
+> `docs/attack-log.md`**](docs/attack-log.md): every concrete vector an
+> external reviewer reproduced against this codebase, with `file:line`
+> anchors and regression tests. Read it as a "this is how easy it is to
+> leak credentials to an AI" field guide. The code below is no longer
+> maintained for new features; the test suite remains as the empirical
+> backing for the attack log.
 
 ---
 
-## Why this exists
+## Why this exists (historical note)
 
-Plain dotfiles, `.env`, `~/.netrc`, and most "vault" tools assume your code
-is the only thing reading the secret. An AI assistant in your editor breaks
-that assumption — it reads files, calls your Python functions, and pastes
-results into transcripts.
+When aisafe started (v0.1, Feb 2026), the AI-credential-leak problem
+was largely undiscussed and no production-grade answer existed. Plain
+dotfiles, `.env`, `~/.netrc`, and most "vault" tools assume your code
+is the only thing reading the secret. An AI assistant in your editor
+breaks that assumption — it reads files, calls your Python functions,
+and pastes results into transcripts.
 
-aisafe's older "store outside the workspace" trick (v0.2) wasn't enough:
-an AI with a shell can `cat ~/.config/aisafe/credentials.toml`. Encryption
-alone wasn't enough either: once the master password is in memory, the AI
-shares that memory.
+By mid-2026 the space matured rapidly: dedicated brokers (above), MCP
+adapters for established vaults, and HTTPS-proxy patterns all shipped.
+aisafe's same-process Python library approach — with heuristic AI
+detection at its core — cannot compete on safety with any of them.
 
-aisafe v0.3 changes the model. The store is gated by a policy engine that
-**detects AI agents in the caller chain** and routes them through one of
-three safe paths: **deny**, **stub (`<REDACTED:key>`)**, or
-**capability-mediated use** (exec injection, MCP tools).
+What aisafe v0.3 *can* still do as a teaching artifact is illustrate
+the **shape of attacks** against any credential-broker design.
+[`docs/attack-log.md`](docs/attack-log.md) walks through 30+ concrete
+attack vectors, each with the patch that closed it. The code below is
+the worked example. The threat-model section is the takeaway.
+
+The original design described aisafe as a guardrail, not a sandbox.
+That framing was honest but the implementation kept springing leaks —
+10 rounds of review found 30+ distinct attack vectors, and the Linus
+pass found 4 more after the codex rounds were "done". This is what
+"the safe path requires a real boundary, not a convention" looks like
+in practice.
 
 ---
 
@@ -353,7 +387,21 @@ Overrides:
   password to a single subprocess. aisafe does NOT itself refuse the
   env-var unlock under AI detection — that would break legitimate
   workflows where the user exported the variable in a non-AI shell.
-- `AISAFE_STUB=1` — force `stub_ai` for everything (good for AI dry-runs)
+- `AISAFE_STUB=1` — force `stub_ai` for everything except keys whose
+  underlying policy is `deny`. (Until R10-3 this could downgrade `deny`
+  to `stub_ai` and leak deny keys via `aisafe exec`; see attack log.)
+
+---
+
+## Further reading
+
+- [`docs/attack-log.md`](docs/attack-log.md) — the round-by-round
+  record of every concrete attack vector reproduced against aisafe
+  and the patch that closed it. **This is the document the project
+  exists to preserve.**
+- [`tests/test_round{2..10}_fixes.py`](tests/) — each round's
+  regression tests; useful as a copy-paste starting point for
+  testing any agent-credential-broker design.
 
 ---
 

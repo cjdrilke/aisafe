@@ -63,7 +63,7 @@ from . import store as _store
 
 PROTOCOL_VERSION = "2025-03-26"
 SERVER_NAME = "aisafe"
-SERVER_VERSION = "0.3.9"
+SERVER_VERSION = "0.3.10"
 
 # Cap on response body bytes we return to the AI. Defends against an
 # attacker-controlled endpoint streaming an oversized response to OOM

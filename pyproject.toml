@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aisafe"
-version = "0.3.9"
+version = "0.3.10"
 description = "Local credential manager that keeps secrets out of AI coding agents' hands"
 readme = "README.md"
 license = {text = "MIT"}

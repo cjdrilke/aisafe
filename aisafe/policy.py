@@ -296,14 +296,32 @@ def _match(key: str, keys: dict[str, PolicyLevel]) -> Optional[PolicyLevel]:
     return None
 
 
-def resolve(key: str) -> PolicyLevel:
-    """Return the effective policy for `key`. Fail-closed if policy file is broken."""
-    state = _load_state()
+def _resolve_with_state(key: str, state: PolicyState) -> PolicyLevel:
+    """Stateless resolve used by both `resolve()` and `evaluate()`.
+
+    Extracted so a single `evaluate()` call only reads `policies.toml` once —
+    the previous code re-loaded the file via `resolve()`, opening a TOCTOU
+    window between the two reads and doubling I/O.
+
+    AISAFE_STUB=1 forces `stub_ai` for everything *except* keys that resolve
+    to `deny`. `deny` means "never expose, anywhere" (see module docstring);
+    a global stub override must not be able to downgrade that to `stub_ai`,
+    or `aisafe exec` would happily inject a deny key into the child env when
+    the AI sets AISAFE_STUB=1 in its own environment.
+    """
     if state.broken:
+        return "deny"
+    underlying: PolicyLevel = _match(key, state.keys) or state.default
+    if underlying == "deny":
         return "deny"
     if os.environ.get("AISAFE_STUB") == "1":
         return "stub_ai"
-    return _match(key, state.keys) or state.default
+    return underlying
+
+
+def resolve(key: str) -> PolicyLevel:
+    """Return the effective policy for `key`. Fail-closed if policy file is broken."""
+    return _resolve_with_state(key, _load_state())
 
 
 def evaluate(key: str, *, action: str = "read") -> Decision:
@@ -315,7 +333,7 @@ def evaluate(key: str, *, action: str = "read") -> Decision:
             reason=f"policy file broken: {state.broken_reason}",
         )
 
-    policy = resolve(key)
+    policy = _resolve_with_state(key, state)
     ai = detect()
 
     if action != "read":
