@@ -224,8 +224,12 @@ the easy one.** It is one layer of defense in depth, not the only one.
 
 ## Install
 
+aisafe is **not on PyPI** — it's an educational reference, install from source:
+
 ```bash
-pip install aisafe
+git clone https://github.com/cjdrilke/aisafe.git
+cd aisafe
+pip install -e .
 ```
 
 Requires Python 3.11+. Installs `cryptography` and `psutil`.
